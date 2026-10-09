@@ -125,27 +125,25 @@ mainWindow.webContents.setWindowOpenHandler(({ url }) => {
   }
   if (!allowed) return { action: 'deny' }
 
-  const authWindow = new BrowserWindow({
-    width: 520,
-    height: 740,
-    parent: mainWindow,
-    show: true,
-    autoHideMenuBar: true,
-    title: 'Sign in',
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      devTools: false,
+  // Electron opens the popup itself when we allow it. Creating a BrowserWindow
+  // here as well produced a second window that broke the firebase handshake,
+  // so the only thing we do is describe what that window should look like.
+  return {
+    action: 'allow',
+    overrideBrowserWindowOptions: {
+      width: 520,
+      height: 740,
+      parent: mainWindow,
+      autoHideMenuBar: true,
+      title: 'Sign in',
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        devTools: false,
+      },
     },
-  })
-
-  authWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-  authWindow.webContents.on('will-navigate', (event, destination) => {
-    if (destination === appUrl) authWindow.close()
-  })
-
-  return { action: 'allow', overrideBrowserWindowOptions: {} }
+  }
 })
   mainWindow.webContents.on('will-navigate', (event, destination) => {
     if (new URL(destination).origin !== new URL(appUrl).origin) event.preventDefault()
@@ -297,13 +295,30 @@ async function serveStaticFile(clientRoot, pathname, isHeadRequest) {
   }
 }
 
+// Apple validates the OAuth redirect against a registered domain, and a random
+// port cannot be registered. So we try a fixed set of loopback ports and take
+// the first that is free, which keeps the origin stable and predictable.
+const SIGNIN_PORTS = [4317, 4318, 4319, 4320, 4321]
+
 function listenOnLoopback(server) {
   return new Promise((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', () => {
-      server.removeListener('error', reject)
-      resolve(server.address().port)
-    })
+    let index = 0
+    const tryNext = () => {
+      server.removeAllListeners('error')
+      server.once('error', (error) => {
+        if (error.code === 'EADDRINUSE' && index < SIGNIN_PORTS.length - 1) {
+          index += 1
+          tryNext()
+          return
+        }
+        reject(error)
+      })
+      server.listen(SIGNIN_PORTS[index], '127.0.0.1', () => {
+        server.removeAllListeners('error')
+        resolve(server.address().port)
+      })
+    }
+    tryNext()
   })
 }
 

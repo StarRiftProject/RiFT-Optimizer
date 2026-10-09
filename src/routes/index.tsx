@@ -2212,18 +2212,28 @@ const providers = [
       const mod = await import('../lib/firebase')
       const account = await mod.signInWith(id)
       onSignedIn(account)
-    } catch (caught) {
+} catch (caught) {
+      const code = caught && typeof caught === 'object' && 'code' in caught ? String(caught.code) : ''
       const message = caught instanceof Error ? caught.message : String(caught)
-setError(
-        message.includes('popup-closed')
-          ? 'The sign-in window was closed before it finished. Try again.'
-          : message.includes('operation-not-allowed')
-            ? 'That provider is not enabled yet in the Firebase console.'
-            : message.includes('unauthorized-domain')
-              ? 'This app origin is not yet authorised in the Firebase console.'
-              : message.includes('popup')
-                ? 'The sign-in window could not open. Check that popups are allowed, then try again.'
-                : message,
+      // keep the raw code visible while this is still being shaken out, so a
+      // failure names its cause instead of a guess about popups
+      setError(
+        [
+          code || message,
+          code === 'auth/popup-closed-by-user' ? 'You closed the sign-in window.' : null,
+          code === 'auth/operation-not-allowed'
+            ? 'That provider is not enabled in the Firebase console.'
+            : null,
+          code === 'auth/unauthorized-domain'
+            ? 'This app origin is not in the Firebase authorised domains list.'
+            : null,
+          code === 'auth/popup-blocked'
+            ? 'The sign-in window was blocked before it opened.'
+            : null,
+          !code ? 'Sign-in failed.' : null,
+        ]
+          .filter(Boolean)
+          .join(' '),
       )
     } finally {
       setBusy(null)
