@@ -1,0 +1,15 @@
+
+> rift-pubg-preview@0.2.0 dev
+> node scripts/dev.cjs
+
+[vite] 
+[vite]   [32m[1mVITE[22m v8.3.3[39m  [2mready in [0m[1m1336[22m[2m[0m ms[22m
+[vite] 
+[vite]   [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m4317[22m/[39m
+[vite] [2m  [32m➜[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
+[electron] 
+[vite] [2m3:45:11 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m connected.
+[electron] R i F T startup failed: Error: The local interface server stopped before R i F T opened.
+[electron]     at waitForServer (C:\Users\Lover\Documents\Codex\2026-10-07\im-making-that-pubg-optimizer-tool\electron\main.cjs:253:13)
+[electron]     at async openRift (C:\Users\Lover\Documents\Codex\2026-10-07\im-making-that-pubg-optimizer-tool\electron\main.cjs:79:65)
+[electron] exited with 0, stopping the other process

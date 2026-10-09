@@ -1,0 +1,4 @@
+
+[38748:1008/004111.941:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[38748:1008/004111.952:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[38748:1008/004111.952:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2

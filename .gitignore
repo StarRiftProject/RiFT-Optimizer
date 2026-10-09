@@ -1,0 +1,18 @@
+﻿node_modules/
+dist/
+.output/
+.tanstack/
+.cache/
+.tmp/
+release/
+work/
+# machine-specific state, never shared
+data/baseline.json
+data/baseline.before-cleanup.*.json
+data/snapshots/
+data/*.log
+
+# verification captures
+data/*.png
+data/backups/
+data/logs/
