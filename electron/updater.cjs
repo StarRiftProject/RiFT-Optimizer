@@ -62,6 +62,17 @@ function fetchJson(url) {
   })
 }
 
+// tags get typed as v0.2.1, V0.2.1, 0.2.1 or release-0.2.1. all of them mean
+// the same build, so they all normalise to the same version.
+function normaliseTag(tag) {
+  const cleaned = String(tag || '')
+    .trim()
+    .replace(/^[vVrR]/, '')
+    .replace(/^(release|rel)[-_.]?/i, '')
+  const digits = cleaned.match(/\d+(?:\.\d+)*/)
+  return digits ? digits[0] : '0.0.0'
+}
+
 function changelogLines(body) {
   if (!body) return []
   return String(body)
@@ -83,7 +94,7 @@ async function check() {
   cached = (async () => {
     try {
       const release = await fetchJson(RELEASES)
-      const latest = String(release.tag_name || '').replace(/^v/, '') || '0.0.0'
+      const latest = normaliseTag(release.tag_name)
       const notes = changelogLines(release.body)
       if (compare(latest, from) > 0) {
         return {

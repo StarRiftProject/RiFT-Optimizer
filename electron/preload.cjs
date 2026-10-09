@@ -20,8 +20,6 @@ ipcRenderer.on('rift:event', (_event, payload) => fanOut(listeners, payload))
 ipcRenderer.on('rift:hardware', (_event, payload) => fanOut(hardwareListeners, payload))
 ipcRenderer.on('rift:update', (_event, payload) => fanOut(updateListeners, payload))
 
-const hwid = require('./hwid.cjs')
-
 contextBridge.exposeInMainWorld('rift', {
   isDesktop: true,
   engine: () => ipcRenderer.invoke('rift:engine'),

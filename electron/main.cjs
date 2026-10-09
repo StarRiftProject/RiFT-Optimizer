@@ -98,7 +98,55 @@ async function openRift() {
   })
 
   mainWindow.removeMenu()
-  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  const AUTH_HOSTS = [
+  /(^|\.)googleapis\.com$/,
+  /(^|\.)accounts\.google\.com$/,
+  /(^|\.)gstatic\.com$/,
+  /(^|\.)googleusercontent\.com$/,
+  /(^|\.)apple\.com$/,
+  /(^|\.)discord\.com$/,
+  /(^|\.)discordapp\.com$/,
+]
+
+function isAuthHost(hostname) {
+  return AUTH_HOSTS.some((pattern) => pattern.test(hostname))
+}
+
+// OAuth sign-in needs a real popup. Denying every window.open breaks Firebase,
+// so we allow the known providers and lock the child window down: no node, no
+// preload, no further popups. The popup closes itself once the provider sends
+// the user back to our own page.
+mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  let allowed = false
+  try {
+    allowed = isAuthHost(new URL(url).hostname)
+  } catch {
+    allowed = false
+  }
+  if (!allowed) return { action: 'deny' }
+
+  const authWindow = new BrowserWindow({
+    width: 520,
+    height: 740,
+    parent: mainWindow,
+    show: true,
+    autoHideMenuBar: true,
+    title: 'Sign in',
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      devTools: false,
+    },
+  })
+
+  authWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  authWindow.webContents.on('will-navigate', (event, destination) => {
+    if (destination === appUrl) authWindow.close()
+  })
+
+  return { action: 'allow', overrideBrowserWindowOptions: {} }
+})
   mainWindow.webContents.on('will-navigate', (event, destination) => {
     if (new URL(destination).origin !== new URL(appUrl).origin) event.preventDefault()
   })

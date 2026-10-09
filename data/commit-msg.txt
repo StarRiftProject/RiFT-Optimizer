@@ -1,0 +1,25 @@
+Fix sign-in popups and tag casing
+
+Two bugs that made the app look broken.
+
+The preload required hwid.cjs, which uses node:crypto and node:child_process.
+In a sandboxed preload those are unavailable, so the require threw,
+contextBridge never ran, window.rift stayed undefined, and bridgeAvailable()
+returned false. That is why the app reported "browser preview" instead of
+talking to its own engine. The require was also pointless: hwid is only ever
+used in the main process.
+
+Firebase OAuth needs a real popup window. setWindowOpenHandler denied every
+window.open, so sign-in could never start and the only error visible was
+"the sign-in window was blocked". Known provider hosts are now allowed into a
+locked-down child window - no node, no preload, no nested popups - and it
+closes itself once the provider redirects back.
+
+The gate also waited on authRequired being set by a fire-and-forget import,
+so it could stay false and let the console through. It now waits for the auth
+check to settle, and if firebase cannot load at all the app stays usable
+rather than locking the user out of their own machine.
+
+Tags were parsed with a lowercase-only v strip, so a release published as
+V0.2.1 kept its letter and degraded to NaN. Tags now normalise across v, V,
+no prefix, and a release- prefix.

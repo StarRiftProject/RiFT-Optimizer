@@ -245,7 +245,7 @@ const [updateDismissed, setUpdateDismissed] = useState(false)
 const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [account, setAccount] = useState<Account | null>(null)
   const [machineId, setMachineId] = useState('')
-  const [authRequired, setAuthRequired] = useState(false)
+  const [authSettled, setAuthSettled] = useState(false)
 
 const [hardware, setHardware] = useState<HardwareProfile | null>(null)
   const [live, setLive] = useState<Extract<HardwareEvent, { e: 'sample' }> | null>(null)
@@ -287,20 +287,31 @@ const [hardware, setHardware] = useState<HardwareProfile | null>(null)
 
 useEffect(() => {
     let off = () => {}
-    // firebase touches browser apis on import, so it only loads inside the
-    // desktop app once the window has actually mounted
+    // in a real browser there is no local bridge, so no sign-in is needed
     if (!mounted || !bridgeAvailable()) return
     let cancelled = false
-    import('../lib/firebase').then((mod) => {
-      if (cancelled) return
-      setAuthRequired(true)
-      mod.currentAccount().then((existing) => {
-        if (!cancelled && existing) setAccount(existing)
+    // the gate cannot decide anything until firebase has had a chance to load,
+    // otherwise the console flashes past for a frame and the user sees the
+    // preview instead of the sign-in screen
+    import('../lib/firebase')
+      .then((mod) => {
+        if (cancelled) return
+        return mod.currentAccount().then((existing) => {
+          if (cancelled) return
+          if (existing) setAccount(existing)
+          setAuthSettled(true)
+          off = mod.watchAccount((next) => {
+            if (!cancelled) setAccount(next)
+          })
+        })
       })
-      off = mod.watchAccount((next) => {
-        if (!cancelled) setAccount(next)
+      .catch((error) => {
+        if (cancelled) return
+        // if firebase cannot load at all we must not lock the user out of
+        // their own machine, so we let the app through and say why
+        console.error('sign-in unavailable:', error)
+        setAuthSettled(true)
       })
-    })
     return () => {
       cancelled = true
       off()
@@ -730,9 +741,9 @@ useEffect(() => {
 
   const appClass = ['rift-app', environmentMoves ? '' : 'rift-app--still'].filter(Boolean).join(' ')
 
-  // sign-in gates the app, but it must never flash the console for a moment on
-  // first paint, so the browser preview keeps working exactly as it always did
-  if (mounted && authRequired && !account) {
+// sign-in gates the app, but only once we know whether an account already
+  // exists, so a signed-in user never sees the gate flash past
+  if (mounted && bridgeLive && authSettled && !account) {
     return <SignInGate onSignedIn={setAccount} hwid={machineId} />
   }
 
