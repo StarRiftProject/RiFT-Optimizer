@@ -2192,10 +2192,9 @@ function SignInGate({ onSignedIn, hwid }: { onSignedIn: (account: Account) => vo
   const [busy, setBusy] = useState<AuthProviderId | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const providers = [
+const providers = [
     { id: 'google.com' as const, label: 'Google', mark: 'G' },
     { id: 'apple.com' as const, label: 'Apple', mark: '' },
-    { id: 'discord.com' as const, label: 'Discord', mark: 'D' },
   ]
 
   const begin = useCallback(async (id: AuthProviderId) => {
@@ -2207,14 +2206,16 @@ function SignInGate({ onSignedIn, hwid }: { onSignedIn: (account: Account) => vo
       onSignedIn(account)
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught)
-      setError(
-        message.includes('popup')
-          ? 'The sign-in window was blocked or closed. Allow popups for this app and try again.'
+setError(
+        message.includes('popup-closed')
+          ? 'The sign-in window was closed before it finished. Try again.'
           : message.includes('operation-not-allowed')
             ? 'That provider is not enabled yet in the Firebase console.'
             : message.includes('unauthorized-domain')
               ? 'This app origin is not yet authorised in the Firebase console.'
-              : message,
+              : message.includes('popup')
+                ? 'The sign-in window could not open. Check that popups are allowed, then try again.'
+                : message,
       )
     } finally {
       setBusy(null)

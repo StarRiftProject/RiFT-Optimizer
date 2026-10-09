@@ -35,10 +35,11 @@ export type Account = {
   signInAt: string
 }
 
+// Discord was never a first-party Firebase provider, and it has been dropped
+// from this build. Google and Apple are the two that work out of the box.
 const PROVIDERS: { id: AuthProviderId; label: string }[] = [
   { id: 'google.com', label: 'Google' },
   { id: 'apple.com', label: 'Apple' },
-  { id: 'discord.com', label: 'Discord' },
 ]
 
 function providerFor(id: AuthProviderId) {

@@ -20,7 +20,8 @@
     "build": "vite build --configLoader native && tsc --noEmit",
     "preview": "vite preview",
     "start": "electron .",
-    "package:win": "npm run build && electron-builder --win dir --x64"
+    "package:win": "npm run build && electron-builder --win dir --x64",
+    "release": "node scripts/release.cjs"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.170.41",
