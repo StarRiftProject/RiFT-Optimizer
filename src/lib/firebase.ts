@@ -1,7 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import {
   GoogleAuthProvider,
-  OAuthProvider,
   getAuth,
   onAuthStateChanged,
   signInWithPopup,
@@ -24,7 +23,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig)
 const auth = getAuth(app)
 
-export type AuthProviderId = 'google.com' | 'apple.com' | 'discord.com'
+export type AuthProviderId = 'google.com'
 
 export type Account = {
   uid: string
@@ -35,22 +34,17 @@ export type Account = {
   signInAt: string
 }
 
-// Discord was never a first-party Firebase provider, and it has been dropped
-// from this build. Google and Apple are the two that work out of the box.
+// Google is the only provider in this build. Apple needs a paid developer
+// account and a Services ID before it will work, and Discord was never
+// available through Firebase at all, so shipping buttons for either one would
+// only ever produce an error.
 const PROVIDERS: { id: AuthProviderId; label: string }[] = [
   { id: 'google.com', label: 'Google' },
-  { id: 'apple.com', label: 'Apple' },
 ]
 
 function providerFor(id: AuthProviderId) {
-  if (id === 'google.com') {
-    const provider = new GoogleAuthProvider()
-    provider.setCustomParameters({ prompt: 'select_account' })
-    return provider
-  }
-  const provider = new OAuthProvider(id)
-  provider.addScope('email')
-  provider.addScope('profile')
+  const provider = new GoogleAuthProvider()
+  provider.setCustomParameters({ prompt: 'select_account' })
   return provider
 }
 
@@ -82,6 +76,12 @@ export async function signInWith(id: AuthProviderId): Promise<Account> {
   if (!result.user) throw new Error('no account returned')
   return toAccount(result.user)
 }
+
+// Firebase's popup calls window.open, which chromium only permits during a real
+// user gesture. Awaiting a dynamic import before that call loses the gesture and
+// the browser blocks the popup, so the module is resolved ahead of time and
+// handed in by the click handler. Nothing may await before signInWith runs.
+export type SignInFn = (id: AuthProviderId) => Promise<Account>
 
 export async function currentAccount(): Promise<Account | null> {
   if (!auth.currentUser) return null

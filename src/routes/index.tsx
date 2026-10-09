@@ -2199,20 +2199,34 @@ function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
 function SignInGate({ onSignedIn, hwid }: { onSignedIn: (account: Account) => void; hwid: string }) {
   const [busy, setBusy] = useState<AuthProviderId | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // resolved on mount so the click below can open the popup without awaiting
+  const signInRef = useRef<((id: AuthProviderId) => Promise<Account>) | null>(null)
 
-const providers = [
-    { id: 'google.com' as const, label: 'Google', mark: 'G' },
-    { id: 'apple.com' as const, label: 'Apple', mark: '' },
-  ]
+  useEffect(() => {
+    let cancelled = false
+    import('../lib/firebase').then((mod) => {
+      if (!cancelled) signInRef.current = mod.signInWith
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
-  const begin = useCallback(async (id: AuthProviderId) => {
-    setBusy(id)
-    setError(null)
-    try {
-      const mod = await import('../lib/firebase')
-      const account = await mod.signInWith(id)
-      onSignedIn(account)
-} catch (caught) {
+  const providers = [{ id: 'google.com' as const, label: 'Google', mark: 'G' }]
+
+  const begin = useCallback(
+    async (id: AuthProviderId) => {
+      setError(null)
+      const signIn = signInRef.current
+      if (!signIn) {
+        setError('Sign-in is still loading. Try again in a moment.')
+        return
+      }
+      setBusy(id)
+      try {
+        const account = await signIn(id)
+        onSignedIn(account)
+      } catch (caught) {
       const code = caught && typeof caught === 'object' && 'code' in caught ? String(caught.code) : ''
       const message = caught instanceof Error ? caught.message : String(caught)
       // keep the raw code visible while this is still being shaken out, so a
@@ -2235,10 +2249,12 @@ const providers = [
           .filter(Boolean)
           .join(' '),
       )
-    } finally {
-      setBusy(null)
-    }
-  }, [onSignedIn])
+} finally {
+        setBusy(null)
+      }
+    },
+    [onSignedIn],
+  )
 
   return (
     <div className="rift-app rift-app--still">
