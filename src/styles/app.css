@@ -640,9 +640,12 @@ body{background:
   linear-gradient(180deg,rgba(120,60,190,.028),rgba(30,140,190,.022) 46%,rgba(190,60,150,.026)),
   var(--ink)}
 
+/* the cathedral is mostly light already, so the scrim only has to push the
+   corners down and keep the candles from blowing out the panels */
 .scene-scrim{background:
-  linear-gradient(90deg,rgba(5,4,6,.86),rgba(5,4,6,.74) 26%,rgba(5,4,6,.44) 62%,rgba(5,4,6,.66)),
-  linear-gradient(180deg,rgba(6,5,7,.36),transparent 34%,rgba(6,5,7,.72))}
+  radial-gradient(120% 90% at 50% 26%,rgba(4,4,6,.1),rgba(4,4,6,.62) 78%),
+  linear-gradient(90deg,rgba(4,4,6,.8),rgba(4,4,6,.58) 24%,rgba(4,4,6,.34) 58%,rgba(4,4,6,.6)),
+  linear-gradient(180deg,rgba(5,5,7,.5),transparent 26%,rgba(5,5,7,.78))}
 
 /* subtle iridescent hairline on the chrome */
 .sidebar{border-right-color:rgba(255,255,255,.09)}
@@ -695,6 +698,7 @@ body{background:
 
 @media (prefers-reduced-motion:reduce){
   .rgb-fan-blades,.rgb-fan-ring,.rgb-fan::before,.rgb-fan-core::after,.scene-rgb{animation:none!important}
+    .cath-flame,.cath-shafts,.cath-glass-group,.version-pip{animation:none!important}
 }
 @media (max-width:900px){ .rgb-fan{width:38px;height:38px;flex-basis:38px}.rgb-fan--compact{width:30px;height:30px;flex-basis:30px} }
 
@@ -711,6 +715,22 @@ body{background:
 .update-skip{padding:7px 2px;border:0;background:none;color:var(--quiet);font:9px var(--mono);letter-spacing:.15em;cursor:pointer;transition:color .16s ease}
 .update-skip:hover{color:var(--muted)}
 .update-probe{position:fixed;right:14px;bottom:14px;z-index:40;padding:7px 12px;border:1px solid var(--line);background:rgba(12,9,17,.9);color:var(--quiet);font:8px var(--mono);letter-spacing:.14em;cursor:pointer}
+
+/* cathedral: the candles breathe, the shafts drift. all of it stops dead under
+   prefers-reduced-motion, and the still class freezes it for screenshots. */
+.cathedral-art{position:absolute;z-index:0;inset:0;width:100%;height:100%}
+.cath-flame{transform-box:fill-box;transform-origin:center bottom;animation:cathFlicker 3.4s ease-in-out infinite alternate}
+.cath-flame--near{animation-duration:2.6s}
+.cath-shafts{animation:cathShaft 14s ease-in-out infinite alternate}
+.cath-glass-group{animation:cathGlass 9s ease-in-out infinite alternate}
+@keyframes cathFlicker{
+  0%{opacity:.82;transform:scaleY(1) scaleX(1)}
+  38%{opacity:1;transform:scaleY(1.09) scaleX(.94)}
+  62%{opacity:.9;transform:scaleY(.95) scaleX(1.05)}
+  100%{opacity:1;transform:scaleY(1.06) scaleX(.97)}
+}
+@keyframes cathShaft{0%{opacity:.78}100%{opacity:1}}
+@keyframes cathGlass{0%{opacity:.82}100%{opacity:1}}
 
 /* sign-in gate: the one screen shown before anything else is reachable */
 .signin-gate{position:relative;z-index:2;display:grid;min-height:100vh;place-items:center;padding:32px 20px}

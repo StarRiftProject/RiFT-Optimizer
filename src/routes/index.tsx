@@ -18,6 +18,7 @@ import {
   subscribeUpdate,
 } from '../lib/rift-bridge'
 import type { AuthProviderId } from '../lib/firebase'
+import { CathedralScene } from '../components/cathedral-scene'
 import type {
   Account,
   DeviceStatus,
@@ -747,9 +748,9 @@ useEffect(() => {
     return <SignInGate onSignedIn={setAccount} hwid={machineId} />
   }
 
-  return (
+return (
     <div className={appClass}>
-      <PortalScene animate={environmentMoves} />
+      <CathedralScene animate={environmentMoves} />
       <EmberField />
       <div className="scene-scrim" aria-hidden="true" />
       <div className="app-frame">
@@ -2224,7 +2225,7 @@ setError(
 
   return (
     <div className="rift-app rift-app--still">
-      <PortalScene animate={false} />
+      <CathedralScene animate={false} />
       <div className="scene-scrim" aria-hidden="true" />
       <div className="signin-gate">
         <section className="signin-card">
