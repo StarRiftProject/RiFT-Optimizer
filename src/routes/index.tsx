@@ -1831,7 +1831,7 @@ function Overview(props: {
         <div className="hero-corner hero-corner--tr" aria-hidden="true">R — 01</div>
       </section>
 
-      <SystemStatus device={props.device} stage={props.stage} engineReady={props.engineReady} lastRun={props.lastRun} />
+      <SystemStatus device={props.device} stage={props.stage} engineReady={props.engineReady} lastRun={props.lastRun} bench={props.bench} />
 
       <section className="bench-bar" aria-label="Measured frame rate">
         <span className="metric-icon"><Icon name="activity" size={16} /></span>
@@ -1946,9 +1946,12 @@ function benchNumber(result: BenchResult): number {
   return result.source === 'host' ? (result.rate ?? 0) : (result.fps ?? 0)
 }
 
-function SystemStatus(props: { device: DeviceStatus | null; stage: string; engineReady: boolean; lastRun: RunResult | null }) {
+function SystemStatus(props: { device: DeviceStatus | null; stage: string; engineReady: boolean; lastRun: RunResult | null; bench: BenchResult | null }) {
   const d = props.device
   const connected = Boolean(d?.online)
+  // a benchmark is the only thing in this app that produces a real frame rate.
+  // the config numbers are targets, so they must never be shown as measured.
+  const measured = props.bench?.ok ? (props.bench.source === 'host' ? props.bench.rate : props.bench.fps) : null
 
   const items = [
     {
@@ -1966,11 +1969,15 @@ function SystemStatus(props: { device: DeviceStatus | null; stage: string; engin
       live: Boolean(d),
     },
     {
+      // Only a benchmark gives us a real frame rate. Everything else here is a
+      // configured number, so showing one as if it were measured would be a lie.
       label: 'FRAME GOAL',
-      value: d ? `${d.fpsMax} FPS` : 'AWAITING',
-      note: d ? `min ${d.fpsMin} · peak ${d.fpsPeak}` : 'not connected',
+      value: measured ? `${measured} → ${d?.fpsPeak ?? 240} FPS` : `${d?.fpsPeak ?? 240} FPS`,
+      note: measured
+        ? `measured ${measured} · target ${d?.fpsPeak ?? 240}`
+        : 'run the benchmark for a measured rate',
       icon: 'network' as const,
-      live: Boolean(d),
+      live: Boolean(props.device),
     },
     {
       label: 'ENGINE',
