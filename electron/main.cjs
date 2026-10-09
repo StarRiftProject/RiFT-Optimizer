@@ -145,8 +145,20 @@ mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     },
   }
 })
+  // Sign-in leaves the app for the provider and comes back to us. Everything
+// else that tries to navigate this window off our own origin is refused.
+  const ownOrigin = new URL(appUrl).origin
   mainWindow.webContents.on('will-navigate', (event, destination) => {
-    if (new URL(destination).origin !== new URL(appUrl).origin) event.preventDefault()
+    let target = null
+    try {
+      target = new URL(destination)
+    } catch {
+      event.preventDefault()
+      return
+    }
+    if (target.origin === ownOrigin) return
+    if (isAuthHost(target.hostname) || target.hostname.endsWith('firebaseapp.com')) return
+    event.preventDefault()
   })
   mainWindow.once('ready-to-show', () => mainWindow.show())
   registerBridgeHandlers()

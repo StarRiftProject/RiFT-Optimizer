@@ -297,7 +297,10 @@ useEffect(() => {
     import('../lib/firebase')
       .then((mod) => {
         if (cancelled) return
-        return mod.currentAccount().then((existing) => {
+        // a session coming back from the provider has to be read before the
+        // gate is allowed to decide, or it flashes the sign-in screen at
+        // someone who is already signed in
+        return mod.consumeRedirect().then((existing) => {
           if (cancelled) return
           if (existing) setAccount(existing)
           setAuthSettled(true)
@@ -2224,8 +2227,9 @@ function SignInGate({ onSignedIn, hwid }: { onSignedIn: (account: Account) => vo
       }
       setBusy(id)
       try {
-        const account = await signIn(id)
-        onSignedIn(account)
+        // a redirect never returns here - the window leaves for the provider and
+        // comes back to a fresh page load, where the session is picked up again
+        await signIn(id)
       } catch (caught) {
       const code = caught && typeof caught === 'object' && 'code' in caught ? String(caught.code) : ''
       const message = caught instanceof Error ? caught.message : String(caught)
@@ -2234,15 +2238,14 @@ function SignInGate({ onSignedIn, hwid }: { onSignedIn: (account: Account) => vo
       setError(
         [
           code || message,
-          code === 'auth/popup-closed-by-user' ? 'You closed the sign-in window.' : null,
           code === 'auth/operation-not-allowed'
             ? 'That provider is not enabled in the Firebase console.'
             : null,
           code === 'auth/unauthorized-domain'
             ? 'This app origin is not in the Firebase authorised domains list.'
             : null,
-          code === 'auth/popup-blocked'
-            ? 'The sign-in window was blocked before it opened.'
+          code === 'auth/network-request-failed'
+            ? 'The provider could not be reached. Check your connection.'
             : null,
           !code ? 'Sign-in failed.' : null,
         ]
@@ -2285,7 +2288,7 @@ function SignInGate({ onSignedIn, hwid }: { onSignedIn: (account: Account) => vo
                 onClick={() => begin(provider.id)}
               >
                 <span className="signin-mark" aria-hidden="true">{provider.mark || ''}</span>
-                <span>{busy === provider.id ? 'Opening...' : `Continue with ${provider.label}`}</span>
+                <span>{busy === provider.id ? 'Leaving for Google...' : `Continue with ${provider.label}`}</span>
               </UIButton>
             ))}
           </div>

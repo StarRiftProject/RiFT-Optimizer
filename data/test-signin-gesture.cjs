@@ -48,10 +48,27 @@ check('firebase type is google only', /export type AuthProviderId = 'google\.com
 check('no discord or apple provider entries', /discord\.com|apple\.com/.test(fb), false)
 
 console.log('errors name their cause')
-for (const code of ['auth/popup-blocked', 'auth/operation-not-allowed', 'auth/unauthorized-domain']) {
+for (const code of ['auth/operation-not-allowed', 'auth/unauthorized-domain', 'auth/network-request-failed']) {
   check(`surfaces ${code}`, ui.includes(code), true)
 }
 check('reads the error code off the thrown object', /'code' in caught/.test(ui), true)
 
+console.log('redirect, not popup')
+check('uses signInWithRedirect', /signInWithRedirect/.test(fb), true)
+check('no signInWithPopup anywhere', /signInWithPopup/.test(fb), false)
+check('reads the redirect result on return', /getRedirectResult/.test(fb), true)
+check('gate consumes the redirect result', /consumeRedirect/.test(ui), true)
+
+console.log('the navigation guard lets the provider through')
+const main = fs.readFileSync(path.join(root, 'electron', 'main.cjs'), 'utf8')
+const guard = main.match(/will-navigate'[\s\S]*?\n\s*\}\)/)
+check('guard exists', Boolean(guard), true)
+if (guard) {
+  check('own origin still allowed', /target\.origin === ownOrigin/.test(guard[0]), true)
+  check('auth hosts allowed through', /isAuthHost/.test(guard[0]), true)
+  check('firebase domains allowed through', /firebaseapp\.com/.test(guard[0]), true)
+  check('everything else still refused', /preventDefault/.test(guard[0]), true)
+}
+
 assert(failures === 0, `${failures} check(s) failed`)
-console.log('\nSIGN-IN GESTURE HANDLING VERIFIED')
+console.log('\nSIGN-IN FLOW VERIFIED')

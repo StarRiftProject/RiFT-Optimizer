@@ -2,8 +2,9 @@ import { initializeApp } from 'firebase/app'
 import {
   GoogleAuthProvider,
   getAuth,
+  getRedirectResult,
   onAuthStateChanged,
-  signInWithPopup,
+  signInWithRedirect,
   signOut,
 } from 'firebase/auth'
 
@@ -71,17 +72,27 @@ function toAccount(user: {
 
 export const availableProviders = PROVIDERS
 
-export async function signInWith(id: AuthProviderId): Promise<Account> {
-  const result = await signInWithPopup(auth, providerFor(id))
-  if (!result.user) throw new Error('no account returned')
-  return toAccount(result.user)
+// Chromium inside Electron refuses the popup window Firebase wants to open, and
+// it reports that as auth/popup-blocked no matter how the click was wired. A
+// full redirect works: the window leaves for Google and comes back to our own
+// origin, which the navigation guard in the main process allows through.
+export async function signInWith(_id: AuthProviderId): Promise<Account> {
+  await signInWithRedirect(auth, providerFor('google.com'))
+  // the page is going away; the session is picked up by currentAccount on return
+  throw new Error('redirecting')
 }
 
-// Firebase's popup calls window.open, which chromium only permits during a real
-// user gesture. Awaiting a dynamic import before that call loses the gesture and
-// the browser blocks the popup, so the module is resolved ahead of time and
-// handed in by the click handler. Nothing may await before signInWith runs.
-export type SignInFn = (id: AuthProviderId) => Promise<Account>
+// called once on startup, before anything renders, so a session that came back
+// from the provider is recognised without a round trip to the user
+export async function consumeRedirect(): Promise<Account | null> {
+  try {
+    const result = await getRedirectResult(auth)
+    if (result?.user) return toAccount(result.user)
+  } catch {
+    /* no redirect in progress, which is the normal case */
+  }
+  return currentAccount()
+}
 
 export async function currentAccount(): Promise<Account | null> {
   if (!auth.currentUser) return null
