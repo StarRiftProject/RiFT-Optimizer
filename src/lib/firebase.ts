@@ -1,9 +1,11 @@
 import { initializeApp } from 'firebase/app'
 import {
   GoogleAuthProvider,
+  browserLocalPersistence,
   getAuth,
   getRedirectResult,
   onAuthStateChanged,
+  setPersistence,
   signInWithRedirect,
   signOut,
 } from 'firebase/auth'
@@ -23,6 +25,14 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig)
 const auth = getAuth(app)
+
+// Without an explicit persistence setting the session lives in memory, so every
+// page load starts signed out - including the load that comes back from the
+// provider, which is exactly when we still need to be logged in. Local storage
+// is kept in the app's own profile directory and survives restarts.
+const persistenceReady = setPersistence(auth, browserLocalPersistence).catch((error) => {
+  console.error('could not enable auth persistence:', error)
+})
 
 export type AuthProviderId = 'google.com'
 
@@ -85,6 +95,9 @@ export async function signInWith(_id: AuthProviderId): Promise<Account> {
 // called once on startup, before anything renders, so a session that came back
 // from the provider is recognised without a round trip to the user
 export async function consumeRedirect(): Promise<Account | null> {
+  // the session has to be on disk before we look for one, or a restored login
+  // is missed and the gate shows to someone who is already signed in
+  await persistenceReady
   try {
     const result = await getRedirectResult(auth)
     if (result?.user) return toAccount(result.user)

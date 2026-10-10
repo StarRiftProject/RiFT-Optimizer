@@ -53,6 +53,20 @@ for (const code of ['auth/operation-not-allowed', 'auth/unauthorized-domain', 'a
 }
 check('reads the error code off the thrown object', /'code' in caught/.test(ui), true)
 
+console.log('the session survives a reload')
+check('persistence is enabled', /setPersistence\(auth, browserLocalPersistence\)/.test(fb), true)
+check('browser local persistence imported', /browserLocalPersistence/.test(fb), true)
+check('lookup waits for persistence', /await persistenceReady/.test(fb), true)
+check('persistence is awaited before the redirect result is read', (() => {
+  // the bare import at the top of the file would match too, so look at the
+  // call site inside consumeRedirect only
+  const body = fb.slice(fb.indexOf('export async function consumeRedirect'))
+  const p = body.indexOf('await persistenceReady')
+  const g = body.indexOf('getRedirectResult(auth)')
+  return p >= 0 && p < g
+})(), true)
+check('nothing signs the user out in-app', /signOutAccount\(/.test(ui), false)
+
 console.log('redirect, not popup')
 check('uses signInWithRedirect', /signInWithRedirect/.test(fb), true)
 check('no signInWithPopup anywhere', /signInWithPopup/.test(fb), false)
