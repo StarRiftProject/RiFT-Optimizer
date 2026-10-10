@@ -716,6 +716,67 @@ body{background:
 .update-skip:hover{color:var(--muted)}
 .update-probe{position:fixed;right:14px;bottom:14px;z-index:40;padding:7px 12px;border:1px solid var(--line);background:rgba(12,9,17,.9);color:var(--quiet);font:8px var(--mono);letter-spacing:.14em;cursor:pointer}
 
+/* overview rails: fixed columns either side of the console, so the hero and
+   module grid keep the centre while the numbers stay put while scrolling */
+.overview-layout{display:grid;grid-template-columns:206px minmax(0,1fr) 232px;gap:18px;align-items:start;padding:16px 18px 26px}
+.overview-rail{position:sticky;top:16px;display:flex;flex-direction:column;gap:11px;padding:15px 14px;border:1px solid var(--line);background:rgba(10,8,13,.62);backdrop-filter:blur(7px)}
+.overview-rail--right{max-height:calc(100vh - 120px);overflow-y:auto}
+
+.rail-fps{padding-bottom:12px;border-bottom:1px solid var(--line)}
+.rail-fps-pair{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+.rail-fps-label{color:var(--quiet);font:8px var(--mono);letter-spacing:.15em}
+.rail-fps-measured,.rail-fps-target{color:var(--acid);font:600 21px/1 var(--display);text-shadow:0 0 16px rgba(173,110,244,.28)}
+.rail-fps-target{color:var(--paper)}
+.rail-fps-bar{position:relative;height:3px;margin-top:9px;background:rgba(255,255,255,.07);overflow:hidden}
+.rail-fps-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--acid-dim),var(--acid));transition:width .4s ease}
+.rail-fps-note{display:block;margin-top:7px;color:var(--quiet);font-size:8px;letter-spacing:.05em}
+
+.rail-metric{display:flex;flex-direction:column;gap:5px}
+.rail-metric-head{display:flex;align-items:baseline;justify-content:space-between;gap:6px}
+.rail-metric-label{color:var(--quiet);font:8px var(--mono);letter-spacing:.15em}
+.rail-metric-note{color:var(--quiet);font-size:8px}
+.rail-metric-value{display:flex;align-items:baseline;gap:3px}
+.rail-metric-value strong{color:#e8e2f0;font:600 18px/1 var(--display)}
+.rail-metric-value span{color:var(--muted);font-size:9px}
+.rail-spark{width:100%;height:34px;display:block;overflow:visible}
+.rail-spark-empty{display:block;height:34px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.04) 0 1px,transparent 1px 9px)}
+.rail-metric-empty,.rail-metric-foot{color:var(--quiet);font-size:8px;letter-spacing:.05em}
+
+.rail-device{display:flex;flex-direction:column;gap:5px;margin-top:auto;padding-top:12px;border-top:1px solid var(--line)}
+.rail-device strong{color:#e8e2f0;font:600 13px/1.2 var(--display);word-break:break-all}
+.rail-device-state{display:flex;align-items:center;gap:6px;color:var(--quiet);font:8px var(--mono);letter-spacing:.12em}
+.rail-device-state i{width:5px;height:5px;border-radius:50%;background:var(--quiet)}
+.rail-device-state.is-online{color:var(--rgb-d)}
+.rail-device-state.is-online i{background:var(--rgb-d);box-shadow:0 0 8px rgba(52,199,89,.8)}
+.rail-device-root{color:var(--acid-dim);font:8px var(--mono);letter-spacing:.12em}
+
+.rail-creed{display:flex;align-items:flex-start;gap:9px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.rail-creed-mark{color:var(--acid);font-size:19px;line-height:1;text-shadow:0 0 14px rgba(173,110,244,.45)}
+.rail-creed p{margin:0;color:#cfc7d8;font:600 11px/1.45 var(--display);letter-spacing:.06em}
+.rail-heading{margin:0 0 9px;color:var(--acid-dim);font:8px var(--mono);letter-spacing:.18em}
+.rail-news ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px}
+.rail-news li{display:flex;flex-direction:column;gap:3px;padding-bottom:10px;border-bottom:1px solid rgba(175,146,209,.08)}
+.rail-news li:last-child{border-bottom:0;padding-bottom:0}
+.rail-news strong{color:#ddd6e6;font-size:10px;font-weight:600;line-height:1.35}
+.rail-news p{margin:0;color:var(--quiet);font-size:9px;line-height:1.55}
+.rail-news-tag{align-self:flex-start;padding:2px 5px;border:1px solid var(--line);color:var(--acid-dim);font:7px var(--mono);letter-spacing:.14em;text-transform:uppercase}
+.rail-news-tag--safety{color:var(--rgb-d);border-color:rgba(52,199,89,.3)}
+.rail-news-tag--privacy{color:var(--rgb-e);border-color:rgba(50,173,230,.3)}
+.rail-news-tag--licence{color:var(--warning);border-color:rgba(201,138,94,.3)}
+
+.rail-status dl{margin:0;display:flex;flex-direction:column;gap:6px}
+.rail-status dl div{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.rail-status dt{color:var(--quiet);font:8px var(--mono);letter-spacing:.12em}
+.rail-status dd{margin:0;color:#e8e2f0;font:600 11px var(--display)}
+
+@media (max-width:1320px){ .overview-layout{grid-template-columns:184px minmax(0,1fr) 200px} }
+@media (max-width:1120px){
+  .overview-layout{grid-template-columns:minmax(0,1fr)}
+  .overview-rail{position:static;flex-direction:row;flex-wrap:wrap;align-items:flex-start}
+  .overview-rail--right{max-height:none}
+  .rail-fps,.rail-metric,.rail-device{flex:1 1 150px}
+}
+
 /* cathedral: the candles breathe, the shafts drift. all of it stops dead under
    prefers-reduced-motion, and the still class freezes it for screenshots. */
 .cathedral-art{position:absolute;z-index:0;inset:0;width:100%;height:100%}

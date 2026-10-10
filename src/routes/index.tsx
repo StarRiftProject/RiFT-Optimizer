@@ -19,6 +19,7 @@ import {
 } from '../lib/rift-bridge'
 import type { AuthProviderId } from '../lib/firebase'
 import { CathedralScene } from '../components/cathedral-scene'
+import { LeftRail, RightRail } from '../components/overview-rails'
 import type {
   Account,
   DeviceStatus,
@@ -859,11 +860,13 @@ return (
                 device={device}
                 stage={stage}
                 lastRun={lastRun}
-                onMeasure={measureFrameRate}
-                bench={bench}
-                benchBefore={benchBefore}
-                benching={benching}
-              />
+onMeasure={measureFrameRate}
+    bench={bench}
+    benchBefore={benchBefore}
+    benching={benching}
+    history={history}
+    version={appVersion}
+    />
             )}
             {section === 'optimizations' && (
               <Optimizations
@@ -1815,15 +1818,25 @@ function Overview(props: {
   device: DeviceStatus | null
   stage: string
   lastRun: RunResult | null
-  onMeasure: () => void
+onMeasure: () => void
   bench: BenchResult | null
   benchBefore: BenchResult | null
   benching: boolean
-}) {
+  history: { cpu: number[]; ram: number[]; gpu: number[] }
+  version: string
+  }) {
   return (
+    <div className="overview-layout">
+    <LeftRail
+      history={props.history}
+      device={props.device}
+      bench={props.bench}
+      fpsTarget={props.device?.fpsPeak ?? 240}
+      engineReady={props.engineReady}
+    />
     <div className="screen screen-overview">
-      <div className="breadcrumb"><span>CONTROL</span><i>/</i><b>OVERVIEW</b><span className="breadcrumb-tail">SECTOR 01 <i>·</i> PREVIEW MODE</span></div>
-      <section className="hero-panel">
+    <div className="breadcrumb"><span>CONTROL</span><i>/</i><b>OVERVIEW</b><span className="breadcrumb-tail">SECTOR 01 <i>Â·</i> PREVIEW MODE</span></div>
+    <section className="hero-panel">
         <div className="hero-content">
           <p className="eyebrow"><span className="eyebrow-mark" />BEYOND THE DEFAULT</p>
           <h1>BREAK THE LIMIT.<span>ENTER THE RIFT.</span></h1>
@@ -1894,9 +1907,11 @@ function Overview(props: {
           action={<UIButton className="text-action" onClick={props.onOptimizations}>VIEW ALL <Icon name="arrowRight" size={14} /></UIButton>}
         />
         <ModuleGrid selectedSet={props.selectedSet} onToggle={props.onToggle} />
-      </section>
+</section>
 
       <SafetyBar activeCount={props.activeModuleCount} onInitialize={props.onInitialize} engineReady={props.engineReady} bridgeLive={props.bridgeLive} />
+    </div>
+    <RightRail version={props.version} moduleCount={props.activeModuleCount} />
     </div>
   )
 }
