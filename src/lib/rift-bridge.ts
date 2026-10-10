@@ -85,9 +85,12 @@ cancel(): Promise<{ cancelled: boolean }>
   checkUpdate(): Promise<UpdateStatus>
   recheckUpdate(): Promise<UpdateStatus>
   openUpdatePage(): Promise<boolean>
+  downloadUpdate(): Promise<{ started: boolean; reason?: string; name?: string }>
+  revealUpdateDownload(): Promise<boolean>
   onEvent(listener: (event: EngineEvent) => void): () => void
   onHardware(listener: (event: HardwareEvent) => void): () => void
   onUpdate(listener: (payload: UpdateStatus) => void): () => void
+  onUpdateDownload(listener: (payload: UpdateDownloadStatus) => void): () => void
 }
 
 export type HwidInfo = {
@@ -115,6 +118,19 @@ export type UpdateStatus = {
   url: string
   publishedAt?: string | null
   reason?: string
+  downloadAvailable?: boolean
+  assetName?: string
+  assetSize?: number
+}
+
+export type UpdateDownloadStatus = {
+  state: 'downloading' | 'complete' | 'installing' | 'error'
+  version: string
+  name: string
+  downloadedBytes: number
+  totalBytes: number | null
+  percent: number | null
+  message?: string
 }
 
 export type CpuInfo = {
@@ -300,9 +316,32 @@ export const openUpdatePage = async (): Promise<boolean> => {
   }
 }
 
+export const downloadUpdate = async (): Promise<{ started: boolean; reason?: string; name?: string }> => {
+  if (!bridgeAvailable()) return { started: false, reason: 'no-bridge' }
+  try {
+    return await window.rift!.downloadUpdate()
+  } catch (error) {
+    return { started: false, reason: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export const revealUpdateDownload = async (): Promise<boolean> => {
+  if (!bridgeAvailable()) return false
+  try {
+    return Boolean(await window.rift!.revealUpdateDownload())
+  } catch {
+    return false
+  }
+}
+
 export const subscribeUpdate = (listener: (payload: UpdateStatus) => void): (() => void) => {
   if (!bridgeAvailable()) return () => {}
   return window.rift!.onUpdate(listener)
+}
+
+export const subscribeUpdateDownload = (listener: (payload: UpdateDownloadStatus) => void): (() => void) => {
+  if (!bridgeAvailable()) return () => {}
+  return window.rift!.onUpdateDownload(listener)
 }
 
 export const subscribeHardware = (listener: (event: HardwareEvent) => void): (() => void) => {

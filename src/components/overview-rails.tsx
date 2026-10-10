@@ -7,6 +7,7 @@
 // Both read only from props, so they cannot reach for state of their own.
 
 import type { DeviceStatus } from '../lib/rift-bridge'
+import changelog from '../../CHANGELOG.md?raw'
 
 // Only the fields the rails actually read. The full BenchResult carries more
 // than this, and narrowing here keeps the component honest about its needs.
@@ -142,47 +143,60 @@ export function LeftRail(props: {
   )
 }
 
-const NEWS = [
-  {
-    title: 'Game frame target raised',
-    body: 'The emulator pipeline measures what it delivers; the game is configured above that on purpose.',
-    tag: 'tuning',
-  },
-  {
-    title: 'Every setting is reversible',
-    body: 'A baseline is written before anything changes, and restore puts every value back.',
-    tag: 'safety',
-  },
-  {
-    title: 'Nothing leaves your machine',
-    body: 'Tuning runs locally. Only your sign-in and machine id are ever sent anywhere.',
-    tag: 'privacy',
-  },
-  {
-    title: 'One licence, one PC',
-    body: 'A hardware fingerprint keeps the install bound to this computer.',
-    tag: 'licence',
-  },
-]
+type ReleaseNote = { version: string; body: string }
+
+function isCurrentOrOlder(candidate: string, current: string) {
+  const left = candidate.split('.').map((part) => Number(part) || 0)
+  const right = current.split('.').map((part) => Number(part) || 0)
+
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const a = left[index] ?? 0
+    const b = right[index] ?? 0
+    if (a !== b) return a < b
+  }
+
+  return true
+}
+
+function recentReleaseNotes(currentVersion: string): ReleaseNote[] {
+  const notes: ReleaseNote[] = []
+  let version = ''
+
+  for (const line of changelog.split(/\r?\n/)) {
+    const heading = line.match(/^##\s+v?(\d+(?:\.\d+){1,2})/i)
+    if (heading) {
+      version = heading[1]
+      continue
+    }
+
+    const item = line.match(/^\*\s+(.+)/)
+    if (version && item && isCurrentOrOlder(version, currentVersion)) {
+      notes.push({ version, body: item[1] })
+    }
+  }
+
+  return notes.slice(0, 4)
+}
 
 export function RightRail(props: { version: string; moduleCount: number }) {
+  const updates = recentReleaseNotes(props.version)
+
   return (
     <aside className="overview-rail overview-rail--right" aria-label="Release notes and status">
       <div className="rail-creed">
         <span className="rail-creed-mark" aria-hidden="true">+</span>
-        <p>Discipline<br />Builds<br />Freedom.</p>
+        <p>Not just an<br />optimizer —<br />it’s a lifestyle.</p>
       </div>
 
       <section className="rail-news">
         <h2 className="rail-heading">News &amp; Updates</h2>
         <ul>
-          {NEWS.map((item) => (
-            <li key={item.tag}>
-              <span className={`rail-news-tag rail-news-tag--${item.tag}`}>{item.tag}</span>
-              <strong>{item.title}</strong>
-              <p>{item.body}</p>
+          {updates.length ? updates.map((item, index) => (
+            <li key={`${item.version}-${index}`}>
+              <span className="rail-news-tag">v{item.version}</span>
+              <strong>{item.body}</strong>
             </li>
-          ))}
+          )) : <li><strong>Release notes will appear here.</strong></li>}
         </ul>
       </section>
 

@@ -3,10 +3,9 @@ import {
   GoogleAuthProvider,
   browserLocalPersistence,
   getAuth,
-  getRedirectResult,
   onAuthStateChanged,
   setPersistence,
-  signInWithRedirect,
+  signInWithPopup,
   signOut,
 } from 'firebase/auth'
 
@@ -26,13 +25,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig)
 const auth = getAuth(app)
 
-// Without an explicit persistence setting the session lives in memory, so every
-// page load starts signed out - including the load that comes back from the
-// provider, which is exactly when we still need to be logged in. Local storage
-// is kept in the app's own profile directory and survives restarts.
-const persistenceReady = setPersistence(auth, browserLocalPersistence).catch((error) => {
-  console.error('could not enable auth persistence:', error)
-})
+// Keep the account in this app's own profile directory, and finish restoring it
+// before exposing either the login button or the signed-out state.
+const persistenceReady = setPersistence(auth, browserLocalPersistence)
 
 export type AuthProviderId = 'google.com'
 
@@ -53,7 +48,7 @@ const PROVIDERS: { id: AuthProviderId; label: string }[] = [
   { id: 'google.com', label: 'Google' },
 ]
 
-function providerFor(id: AuthProviderId) {
+function providerFor() {
   const provider = new GoogleAuthProvider()
   provider.setCustomParameters({ prompt: 'select_account' })
   return provider
@@ -82,28 +77,25 @@ function toAccount(user: {
 
 export const availableProviders = PROVIDERS
 
-// Chromium inside Electron refuses the popup window Firebase wants to open, and
-// it reports that as auth/popup-blocked no matter how the click was wired. A
-// full redirect works: the window leaves for Google and comes back to our own
-// origin, which the navigation guard in the main process allows through.
+// The app runs on a local loopback origin while Firebase's sign-in helper is on
+// firebaseapp.com. Redirect sign-in relies on cross-site storage between those
+// origins, which Chromium can block and then silently return to the login gate.
+// A Google popup avoids that redirect storage hand-off. prepareAuth is completed
+// before the button is enabled, so this call opens its window in the click's
+// original user gesture.
 export async function signInWith(_id: AuthProviderId): Promise<Account> {
-  await signInWithRedirect(auth, providerFor('google.com'))
-  // the page is going away; the session is picked up by currentAccount on return
-  throw new Error('redirecting')
+  const result = await signInWithPopup(auth, providerFor())
+  return toAccount(result.user)
 }
 
-// called once on startup, before anything renders, so a session that came back
-// from the provider is recognised without a round trip to the user
-export async function consumeRedirect(): Promise<Account | null> {
-  // the session has to be on disk before we look for one, or a restored login
-  // is missed and the gate shows to someone who is already signed in
+export async function prepareAuth(): Promise<void> {
   await persistenceReady
-  try {
-    const result = await getRedirectResult(auth)
-    if (result?.user) return toAccount(result.user)
-  } catch {
-    /* no redirect in progress, which is the normal case */
-  }
+  await auth.authStateReady()
+}
+
+// Called before the login gate decides whether an account is already saved.
+export async function restoreAccount(): Promise<Account | null> {
+  await prepareAuth()
   return currentAccount()
 }
 

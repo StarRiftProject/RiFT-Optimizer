@@ -5,6 +5,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 const listeners = new Set()
 const hardwareListeners = new Set()
 const updateListeners = new Set()
+const updateDownloadListeners = new Set()
 
 function fanOut(target, payload) {
   for (const listener of target) {
@@ -19,6 +20,7 @@ function fanOut(target, payload) {
 ipcRenderer.on('rift:event', (_event, payload) => fanOut(listeners, payload))
 ipcRenderer.on('rift:hardware', (_event, payload) => fanOut(hardwareListeners, payload))
 ipcRenderer.on('rift:update', (_event, payload) => fanOut(updateListeners, payload))
+ipcRenderer.on('rift:update-download', (_event, payload) => fanOut(updateDownloadListeners, payload))
 
 contextBridge.exposeInMainWorld('rift', {
   isDesktop: true,
@@ -33,10 +35,17 @@ contextBridge.exposeInMainWorld('rift', {
   checkUpdate: () => ipcRenderer.invoke('rift:update-check'),
   recheckUpdate: () => ipcRenderer.invoke('rift:update-reset'),
   openUpdatePage: () => ipcRenderer.invoke('rift:update-open'),
+  downloadUpdate: () => ipcRenderer.invoke('rift:update-download'),
+  revealUpdateDownload: () => ipcRenderer.invoke('rift:update-reveal'),
   onUpdate: (listener) => {
     if (typeof listener !== 'function') return () => {}
     updateListeners.add(listener)
     return () => updateListeners.delete(listener)
+  },
+  onUpdateDownload: (listener) => {
+    if (typeof listener !== 'function') return () => {}
+    updateDownloadListeners.add(listener)
+    return () => updateDownloadListeners.delete(listener)
   },
   onEvent: (listener) => {
     if (typeof listener !== 'function') return () => {}

@@ -7,15 +7,17 @@ import {
   bridgeAvailable,
   cancelRun,
   checkForUpdate,
+  downloadUpdate,
   getAppVersion,
   getEngine,
   getHardware,
-  openUpdatePage,
   recheckForUpdate,
+  revealUpdateDownload,
   runEngine,
   subscribeEngine,
   subscribeHardware,
   subscribeUpdate,
+  subscribeUpdateDownload,
 } from '../lib/rift-bridge'
 import type { AuthProviderId } from '../lib/firebase'
 import { CathedralScene } from '../components/cathedral-scene'
@@ -31,6 +33,7 @@ import type {
   HwidInfo,
   RunAction,
   RunResult,
+  UpdateDownloadStatus,
   UpdateStatus,
 } from '../lib/rift-bridge'
 
@@ -245,6 +248,7 @@ const [updateInfo, setUpdateInfo] = useState<UpdateStatus | null>(null)
 const [updateOpen, setUpdateOpen] = useState(false)
 const [updateDismissed, setUpdateDismissed] = useState(false)
 const [checkingUpdate, setCheckingUpdate] = useState(false)
+const [updateDownload, setUpdateDownload] = useState<UpdateDownloadStatus | null>(null)
   const [account, setAccount] = useState<Account | null>(null)
   const [machineId, setMachineId] = useState('')
   const [authSettled, setAuthSettled] = useState(false)
@@ -298,10 +302,9 @@ useEffect(() => {
     import('../lib/firebase')
       .then((mod) => {
         if (cancelled) return
-        // a session coming back from the provider has to be read before the
-        // gate is allowed to decide, or it flashes the sign-in screen at
-        // someone who is already signed in
-        return mod.consumeRedirect().then((existing) => {
+        // Restore the saved account before the gate decides whether to show
+        // sign-in, so existing sessions never flash the login screen.
+        return mod.restoreAccount().then((existing) => {
           if (cancelled) return
           if (existing) setAccount(existing)
           setAuthSettled(true)
@@ -335,19 +338,66 @@ useEffect(() => {
   useEffect(() => {
     const off = subscribeUpdate((payload) => {
       setUpdateInfo(payload)
+      setUpdateDownload(null)
       if (payload.state === 'available') setUpdateOpen(true)
     })
-    return off
+    const offDownload = subscribeUpdateDownload(setUpdateDownload)
+    return () => {
+      off()
+      offDownload()
+    }
   }, [])
 
   const openDownload = useCallback(async () => {
-    await openUpdatePage()
+    if (!updateInfo) return
+    const initial: UpdateDownloadStatus = {
+      state: 'downloading',
+      version: updateInfo.to,
+      name: updateInfo.assetName || `R-i-F-T-${updateInfo.to}-win-x64.zip`,
+      downloadedBytes: 0,
+      totalBytes: updateInfo.assetSize ?? null,
+      percent: 0,
+    }
+    if (!updateInfo.downloadAvailable) {
+      setUpdateDownload({
+        ...initial,
+        state: 'error',
+        percent: null,
+        message: 'The Windows app folder is not attached to this release yet.',
+      })
+      return
+    }
+    setUpdateDownload(initial)
+    const result = await downloadUpdate()
+    if (!result.started && result.reason !== 'already-downloading') {
+      setUpdateDownload({
+        ...initial,
+        state: 'error',
+        percent: null,
+        message:
+          result.reason === 'missing-release-asset'
+            ? 'The release has no Windows update file attached yet.'
+            : result.reason || 'The update download could not start.',
+      })
+    }
+  }, [updateInfo])
+
+  const showDownloadedUpdate = useCallback(async () => {
+    const opened = await revealUpdateDownload()
+    if (!opened) {
+      setUpdateDownload((current) =>
+        current
+          ? { ...current, message: 'The downloaded update could not be found. Please download it again.' }
+          : current,
+      )
+    }
   }, [])
 
   const checkNow = useCallback(async () => {
     setCheckingUpdate(true)
     const result = await recheckForUpdate()
     setUpdateInfo(result)
+    setUpdateDownload(null)
     setCheckingUpdate(false)
     if (result.state === 'available') setUpdateOpen(true)
   }, [])
@@ -983,7 +1033,7 @@ onMeasure={measureFrameRate}
 
       {updateOpen && updateInfo?.state === 'available' && !updateDismissed && (
         <div className="modal-layer">
-          <div className="modal-backdrop" onMouseDown={() => setUpdateDismissed(true)} />
+          <div className="modal-backdrop" onMouseDown={() => !['downloading', 'complete', 'installing'].includes(updateDownload?.state ?? '') && setUpdateDismissed(true)} />
           <section
             className="rift-dialog update-dialog"
             role="dialog"
@@ -1000,7 +1050,11 @@ onMeasure={measureFrameRate}
               v{updateInfo.from} <em>→</em> v{updateInfo.to}
             </h2>
             <p className="dialog-subtitle">
-              A newer build is published. Close the app before installing so your current run is not lost.
+              {updateDownload?.state === 'complete' || updateDownload?.state === 'installing'
+                ? 'Download complete. RiFT is closing and reopening with the new version.'
+                : updateInfo.downloadAvailable
+                  ? 'Download the update here. RiFT will restart and open the new version when it finishes.'
+                  : 'A newer build is ready, but its Windows app folder has not been attached yet.'}
             </p>
             {updateInfo.notes.length > 0 ? (
               <div className="update-notes">
@@ -1014,13 +1068,51 @@ onMeasure={measureFrameRate}
             ) : (
               <p className="dialog-subtitle">No changelog was published for this build.</p>
             )}
+            {updateDownload && (
+              <div className={`update-download update-download--${updateDownload.state}`}>
+                <div className="update-download-heading">
+                  <span>{updateDownload.state === 'downloading' ? 'DOWNLOADING UPDATE' : updateDownload.state === 'complete' ? 'DOWNLOAD COMPLETE' : updateDownload.state === 'installing' ? 'INSTALLING NEW VERSION' : 'UPDATE PAUSED'}</span>
+                  <strong>{updateDownload.percent == null ? '—' : `${updateDownload.percent}%`}</strong>
+                </div>
+                <div
+                  className={`update-progress-track${updateDownload.percent == null && updateDownload.state === 'downloading' ? ' is-indeterminate' : ''}`}
+                  role="progressbar"
+                  aria-label={`RiFT update download ${updateDownload.percent == null ? 'in progress' : `${updateDownload.percent}%`}`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={updateDownload.percent ?? undefined}
+                >
+                  <span style={{ width: `${updateDownload.percent ?? 0}%` }} />
+                </div>
+                <div className="update-download-meta">
+                  <span>{updateDownload.name}</span>
+                  <span>{formatFileSize(updateDownload.downloadedBytes)}{updateDownload.totalBytes ? ` / ${formatFileSize(updateDownload.totalBytes)}` : ''}</span>
+                </div>
+                {updateDownload.message && <p className="update-download-error" role="alert">{updateDownload.message}</p>}
+              </div>
+            )}
             <div className="update-actions">
-              <UIButton variant="primary" className="dialog-action" onClick={openDownload}>
-                GET THE UPDATE <Icon name="arrowRight" size={17} />
+              <UIButton
+                variant="primary"
+                className="dialog-action"
+                disabled={['downloading', 'complete', 'installing'].includes(updateDownload?.state ?? '')}
+                onClick={updateDownload?.state === 'error' && updateDownload.percent === 100 ? showDownloadedUpdate : openDownload}
+              >
+                {updateDownload?.state === 'downloading'
+                  ? 'DOWNLOADING…'
+                  : updateDownload?.state === 'complete' || updateDownload?.state === 'installing'
+                    ? 'INSTALLING…'
+                    : updateDownload?.state === 'error' && updateDownload.percent === 100
+                      ? 'SHOW UPDATE FILE'
+                      : updateDownload?.state === 'error' && updateInfo.downloadAvailable
+                        ? 'TRY AGAIN'
+                        : 'UPDATE NOW'} <Icon name="arrowRight" size={17} />
               </UIButton>
-              <button className="update-skip" type="button" onClick={() => setUpdateDismissed(true)}>
-                LATER
-              </button>
+              {!['downloading', 'complete', 'installing'].includes(updateDownload?.state ?? '') && (
+                <button className="update-skip" type="button" onClick={() => setUpdateDismissed(true)}>
+                  LATER
+                </button>
+              )}
             </div>
           </section>
         </div>
@@ -1565,8 +1657,8 @@ function EmberField() {
         const flicker = 0.55 + 0.45 * Math.sin(ember.phase * 1.7)
         const alpha = ember.alpha * flicker
         const glow = context.createRadialGradient(ember.x, ember.y, 0, ember.x, ember.y, ember.r * 5)
-        glow.addColorStop(0, 'rgba(200,150,255,' + alpha.toFixed(3) + ')')
-        glow.addColorStop(0.4, 'rgba(150,90,235,' + (alpha * 0.32).toFixed(3) + ')')
+        glow.addColorStop(0, 'rgba(238,238,242,' + alpha.toFixed(3) + ')')
+        glow.addColorStop(0.4, 'rgba(178,181,188,' + (alpha * 0.32).toFixed(3) + ')')
         glow.addColorStop(1, 'rgba(90,40,160,0)')
         context.fillStyle = glow
         context.beginPath()
@@ -2068,7 +2160,7 @@ function Settings({ livingEnvironment, onEnvironment, systemReducedMotion, onExp
     <div className="breadcrumb"><span>CONTROL</span><i>/</i><b>SETTINGS</b><span className="breadcrumb-tail">LOCAL PREFERENCES</span></div>
     <section className="section-intro"><p className="eyebrow"><span className="eyebrow-mark" />RIFT / CONFIGURATION</p><h1>Set the atmosphere.</h1><p>Shape the room around your setup. Your preferences stay in this browser session.</p></section>
     <div className="settings-grid">
-      <section className="settings-panel"><div className="panel-bar"><span><i className="panel-bar-mark" />01 / LIVING ENVIRONMENT</span><Icon name="overview" size={16} /></div><div className="setting-row"><div className="setting-icon"><Icon name="orbit" size={18} /></div><div className="setting-copy"><strong>Animated portal</strong><span>Slow atmospheric movement behind the control deck.</span>{systemReducedMotion && <small className="setting-note">Your device requests reduced motion; the portal stays still.</small>}</div><button className="switch setting-switch" type="button" role="switch" aria-checked={livingEnvironment} aria-label="Enable animated background" onClick={() => onEnvironment(!livingEnvironment)}><span /></button></div><div className="setting-meta"><span>SVG SCENE / LOCAL ASSET</span><span>{livingEnvironment && !systemReducedMotion ? 'MOTION ENABLED' : 'STILL FRAME'}</span></div></section>
+      <section className="settings-panel"><div className="panel-bar"><span><i className="panel-bar-mark" />01 / LIVING ENVIRONMENT</span><Icon name="overview" size={16} /></div><div className="setting-row"><div className="setting-icon"><Icon name="orbit" size={18} /></div><div className="setting-copy"><strong>Cathedral atmosphere</strong><span>Slow light drift and a soft glow behind your control deck.</span>{systemReducedMotion && <small className="setting-note">Your device requests reduced motion; the background stays still.</small>}</div><button className="switch setting-switch" type="button" role="switch" aria-checked={livingEnvironment} aria-label="Enable animated background" onClick={() => onEnvironment(!livingEnvironment)}><span /></button></div><div className="setting-meta"><span>CATHEDRAL IMAGE / LOCAL ASSET</span><span>{livingEnvironment && !systemReducedMotion ? 'MOTION ENABLED' : 'STILL FRAME'}</span></div></section>
       <section className="settings-panel"><div className="panel-bar"><span><i className="panel-bar-mark" />02 / CONFIGURATION EXPORT</span><Icon name="export" size={16} /></div><div className="setting-row"><div className="setting-icon"><Icon name="file" size={18} /></div><div className="setting-copy"><strong>Carry your selection</strong><span>Download the preset and active module list as JSON.</span></div><UIButton variant="outline" className="setting-action" onClick={onExport}>EXPORT JSON <Icon name="arrowDown" size={14} /></UIButton></div><div className="setting-meta"><span>FORMAT / JSON</span><span>PREVIEW DATA ONLY</span></div></section>
       <section className="settings-panel settings-panel--wide"><div className="panel-bar"><span><i className="panel-bar-mark" />03 / DESKTOP CONNECTION</span><span className={['offline-chip', engine?.available ? 'offline-chip--live' : ''].filter(Boolean).join(' ')}><i />{engine?.available ? 'ENGINE FOUND' : 'OFFLINE'}</span></div><div className="connection-detail"><div className="bridge-emblem"><Icon name="plug" size={22} /></div><div className="setting-copy"><strong>PowerShell engine</strong><span>{engine?.available ? 'The tuning engine is on disk and ready. Initialization is the only action that changes this PC, and it backs up every setting first.' : engine?.reason ?? 'Looking for the tuning engine next to the app.'}</span>{device?.device && <small className="setting-note">Connected: {device.device} · {device.brand} {device.model} · root {device.root ? 'yes' : 'no'}</small>}</div><span className="bridge-version">{engine?.available ? 'ENGINE' : 'BRIDGE'} <b>{engine?.name ?? '—'}</b></span></div><div className="setting-meta"><span>LOCAL EXECUTION / {engine?.available ? 'ARMED' : 'DISABLED'}</span><span>{engine?.available ? 'ENGINE DISCOVERED' : 'AWAITING VERIFIED DESKTOP CONNECTION'}</span></div><div className="setting-row"><div className="setting-icon"><Icon name="reset" size={18} /></div><div className="setting-copy"><strong>Roll back the last run</strong><span>Restores every setting from the most recent engine backup.</span></div><UIButton variant="outline" className="setting-action" onClick={onPreview} disabled={restoring || !engine?.available}>PREVIEW</UIButton><UIButton variant="outline" className="setting-action" onClick={onRestore} disabled={restoring || !engine?.available}>{restoring ? 'RESTORING' : 'RESTORE'} <Icon name="reset" size={14} /></UIButton></div></section>
     </div>
@@ -2080,7 +2172,7 @@ function GameProfile({ onOpenSettings, engineReady }: { onOpenSettings: () => vo
     <div className="breadcrumb"><span>CONTROL</span><i>/</i><b>GAME PROFILE</b><span className="breadcrumb-tail">PROFILE 001</span></div>
     <section className="game-profile-card"><div className="profile-lines" aria-hidden="true" /><div className="profile-topline"><span className="eyebrow"><span className="eyebrow-mark" />ACTIVE GAME PROFILE</span><span className="profile-id">R—GAME / 001</span></div><div className="profile-title"><div className="profile-insignia"><Icon name="game" size={36} /></div><div><p className="micro-label">KRAFTON / BATTLEGROUNDS</p><h1>PUBG:<br /><span>BATTLEGROUNDS</span></h1></div></div><div className="profile-bottom"><p>{engineReady ? 'The engine detects PUBG on the connected device and patches its config for the selected frame target.' : 'This interface is a preview for PUBG: BATTLEGROUNDS. The profile does not detect the game or read your system.'}</p><div className="profile-status"><span className="status-dot" />PROFILE READY <b>·</b> {engineReady ? 'ENGINE READY' : 'BRIDGE OFFLINE'}</div></div></section>
     <section className="profile-note"><div className="safety-symbol"><Icon name="lock" size={18} /></div><div><p className="micro-label">DESKTOP CONNECTION</p><strong>{engineReady ? 'This build can execute against your PC.' : 'A browser cannot execute PowerShell or apply Windows changes.'}</strong><span>{engineReady ? 'Initialization applies the selected modules through the local engine. Settings are backed up first and can be rolled back from Settings.' : 'Real optimization requires the desktop build with the local engine.'}</span></div><UIButton variant="outline" onClick={onOpenSettings}>VIEW CONNECTION <Icon name="arrowRight" size={15} /></UIButton></section>
-    <div className="profile-source"><span>PROFILE STATUS / PREVIEW ONLY</span><span>R i F T <i>IN ALLIANCE WITH AL</i></span></div>
+    <div className="profile-source"><span>PROFILE STATUS / PREVIEW ONLY</span><span>RIFT <i>BY ALI ESSAM</i></span></div>
   </div>
 }
 
@@ -2095,7 +2187,7 @@ function RgbFan({ compact = false, size = 44 }: { compact?: boolean; size?: numb
     className={['rgb-fan', compact ? 'rgb-fan--compact' : ''].filter(Boolean).join(' ')}
     style={compact ? undefined : { width: size, height: size, flexBasis: size }}
     role="img"
-    aria-label="Spinning alliance fan with AL in the centre"
+    aria-label="Spinning RGB alliance fan with AL in the centre"
   >
     <span className="rgb-fan-blades" />
     <span className="rgb-fan-ring" />
@@ -2110,7 +2202,7 @@ function RgbFan({ compact = false, size = 44 }: { compact?: boolean; size?: numb
 function Brand({ compact = false }: { compact?: boolean }) {
   return <div className={['brand-lockup', compact ? 'brand-lockup--compact' : ''].join(' ')}>
     <RgbFan compact={compact} />
-    <div className="brand-type"><span className="brand-name">R i F T</span><span className="brand-alliance">IN ALLIANCE WITH <b>AL</b></span></div>
+    <div className="brand-type"><span className="brand-name">RIFT</span><span className="brand-alliance">BY ALI ESSAM</span></div>
     {!compact && <span className="brand-seal">01</span>}
   </div>
 }
@@ -2184,6 +2276,12 @@ function formatTimestamp(iso: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
 }
 
+function formatFileSize(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB'
+  const megabytes = bytes / (1024 * 1024)
+  return megabytes >= 1024 ? `${(megabytes / 1024).toFixed(2)} GB` : `${megabytes.toFixed(1)} MB`
+}
+
 type IconName = 'overview' | 'sliders' | 'activity' | 'settings' | 'game' | 'export' | 'arrowDown' | 'arrowRight' | 'help' | 'core' | 'network' | 'memory' | 'input' | 'privacy' | 'reset' | 'shield' | 'trash' | 'orbit' | 'file' | 'plug' | 'lock'
 
 function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
@@ -2222,9 +2320,17 @@ function SignInGate({ onSignedIn, hwid }: { onSignedIn: (account: Account) => vo
 
   useEffect(() => {
     let cancelled = false
-    import('../lib/firebase').then((mod) => {
-      if (!cancelled) signInRef.current = mod.signInWith
-    })
+    import('../lib/firebase')
+      .then(async (mod) => {
+        await mod.prepareAuth()
+        if (!cancelled) signInRef.current = mod.signInWith
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          const message = caught instanceof Error ? caught.message : String(caught)
+          setError(`Google sign-in could not initialize: ${message}`)
+        }
+      })
     return () => {
       cancelled = true
     }
@@ -2242,32 +2348,36 @@ function SignInGate({ onSignedIn, hwid }: { onSignedIn: (account: Account) => vo
       }
       setBusy(id)
       try {
-        // a redirect never returns here - the window leaves for the provider and
-        // comes back to a fresh page load, where the session is picked up again
-        await signIn(id)
+        // The popup resolves with the signed-in account and Firebase persists it.
+        const signedIn = await signIn(id)
+        onSignedIn(signedIn)
       } catch (caught) {
-      const code = caught && typeof caught === 'object' && 'code' in caught ? String(caught.code) : ''
-      const message = caught instanceof Error ? caught.message : String(caught)
-      // keep the raw code visible while this is still being shaken out, so a
-      // failure names its cause instead of a guess about popups
-      setError(
-        [
-          code || message,
-          code === 'auth/operation-not-allowed'
-            ? 'That provider is not enabled in the Firebase console.'
-            : null,
-          code === 'auth/unauthorized-domain'
-            ? 'This app origin is not in the Firebase authorised domains list.'
-            : null,
-          code === 'auth/network-request-failed'
-            ? 'The provider could not be reached. Check your connection.'
-            : null,
-          !code ? 'Sign-in failed.' : null,
-        ]
-          .filter(Boolean)
-          .join(' '),
-      )
-} finally {
+        const code = caught && typeof caught === 'object' && 'code' in caught ? String(caught.code) : ''
+        const message = caught instanceof Error ? caught.message : String(caught)
+        setError(
+          [
+            code || message,
+            code === 'auth/operation-not-allowed'
+              ? 'That provider is not enabled in the Firebase console.'
+              : null,
+            code === 'auth/unauthorized-domain'
+              ? 'This app origin is not in the Firebase authorised domains list.'
+              : null,
+            code === 'auth/network-request-failed'
+              ? 'The provider could not be reached. Check your connection.'
+              : null,
+            code === 'auth/popup-blocked'
+              ? 'The sign-in window was blocked. Allow the app to open its Google sign-in window and try again.'
+              : null,
+            code === 'auth/popup-closed-by-user'
+              ? 'The Google sign-in window was closed before sign-in finished.'
+              : null,
+            !code ? 'Sign-in failed.' : null,
+          ]
+            .filter(Boolean)
+            .join(' '),
+        )
+      } finally {
         setBusy(null)
       }
     },
@@ -2303,7 +2413,7 @@ function SignInGate({ onSignedIn, hwid }: { onSignedIn: (account: Account) => vo
                 onClick={() => begin(provider.id)}
               >
                 <span className="signin-mark" aria-hidden="true">{provider.mark || ''}</span>
-                <span>{busy === provider.id ? 'Leaving for Google...' : `Continue with ${provider.label}`}</span>
+                <span>{busy === provider.id ? 'Waiting for Google...' : `Continue with ${provider.label}`}</span>
               </UIButton>
             ))}
           </div>

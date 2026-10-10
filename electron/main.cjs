@@ -99,6 +99,7 @@ async function openRift() {
 
   mainWindow.removeMenu()
   const AUTH_HOSTS = [
+  /^starrift-project\.firebaseapp\.com$/,
   /(^|\.)googleapis\.com$/,
   /(^|\.)accounts\.google\.com$/,
   /(^|\.)gstatic\.com$/,
@@ -166,7 +167,11 @@ mainWindow.webContents.setWindowOpenHandler(({ url }) => {
 }
 
 function registerBridgeHandlers() {
-  updater.register()
+  updater.register((payload) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('rift:update-download', payload)
+    }
+  })
   const hwid = require('./hwid.cjs')
   ipcMain.handle('rift:hwid', () => hwid.resolve())
   ipcMain.handle('rift:engine', () => engineInfo())

@@ -3,6 +3,14 @@
 Everything below the newest heading is what the in-app update popup shows.
 Keep one bullet per change, phrased for someone who is not a developer.
 
+## 0.2.2
+
+* New cathedral dashboard with a monochrome gothic look and clearer glass panels
+* The AL fan now spins with animated RGB lighting
+* Google sign-in returns to RiFT and restores your account when the app reopens
+* Update Now downloads with a progress bar, replaces the old Desktop folder with the latest version, and opens RiFT again
+* New RiFT application icon
+
 ## 0.2.1
 
 * Sign-in window now opens correctly instead of being blocked

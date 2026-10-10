@@ -1,6 +1,6 @@
 {
   "name": "rift-pubg-preview",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "productName": "R i F T",
   "description": "R i F T - PUBG Mobile and GameLoop tuning tool with live hardware telemetry.",
   "author": "R i F T",
@@ -21,6 +21,7 @@
     "preview": "vite preview",
     "start": "electron .",
     "package:win": "npm run build && electron-builder --win dir --x64",
+    "package:release": "npm run build && electron-builder --win zip --x64 --publish never",
     "release": "node scripts/release.cjs"
   },
   "dependencies": {
@@ -75,13 +76,13 @@
       "icon": "build/icon.ico",
       "target": [
         {
-          "target": "portable",
+          "target": "zip",
           "arch": [
             "x64"
           ]
         }
       ],
-      "artifactName": "R-i-F-T-${version}-portable.${ext}"
+      "artifactName": "R-i-F-T-${version}-win-${arch}.${ext}"
     }
   },
   "overrides": {
